@@ -2,64 +2,96 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
-export default function Game() {
+export default function FlightSim() {
   const mountRef = useRef(null);
   const [joy, setJoy] = useState({ x: 0, y: 0 });
   const move = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x00bfff); // Deep Sky Blue
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    scene.background = new THREE.Color(0x00bfff);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-    sun.position.set(10, 20, 10);
-    scene.add(sun, new THREE.AmbientLight(0xffffff, 0.7));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(10, 50, 10);
+    scene.add(sun);
 
-    scene.add(new THREE.GridHelper(2000, 50, 0xffffff, 0x000000));
+    const grid = new THREE.GridHelper(5000, 100, 0xffffff, 0x000000);
+    scene.add(grid);
 
-    // NEON PLANE
+    // PLANE MODEL
     const plane = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 4), new THREE.MeshStandardMaterial({color: 0x39FF14}));
+    const mat = new THREE.MeshStandardMaterial({ color: 0x39FF14 }); // Neon Green
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 4), mat);
     body.rotation.x = Math.PI/2;
-    const wings = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 1.5), new THREE.MeshStandardMaterial({color: 0x39FF14}));
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 1.5), mat);
     plane.add(body, wings);
     scene.add(plane);
-    plane.position.y = 20;
+    plane.position.y = 30; // Ground se upar
 
     const animate = () => {
       requestAnimationFrame(animate);
-      plane.rotation.x += move.current.y * 0.04;
-      plane.rotation.z -= move.current.x * 0.05;
-      plane.translateZ(-0.8);
-      camera.position.lerp(new THREE.Vector3(0, 5, 12).applyMatrix4(plane.matrixWorld), 0.1);
+      
+      // Control Handling
+      plane.rotation.x += move.current.y * 0.02; // Pitch
+      plane.rotation.z -= move.current.x * 0.04; // Roll
+      plane.rotation.y -= move.current.x * 0.02; // Yaw
+      
+      plane.translateZ(-0.7); // Constant Speed
+
+      // Camera Fix: Ye plane ke hamesha peeche rahega
+      const idealOffset = new THREE.Vector3(0, 4, 12).applyMatrix4(plane.matrixWorld);
+      camera.position.copy(idealOffset);
       camera.lookAt(plane.position);
+
       renderer.render(scene, camera);
     };
     animate();
+    
+    return () => { if(mountRef.current) mountRef.current.innerHTML = ""; };
   }, []);
 
-  const touch = (e) => {
+  const handleTouch = (e) => {
     const t = e.touches;
-    const dx = t.clientX - window.innerWidth/2;
-    const dy = t.clientY - (window.innerHeight - 100);
-    const d = Math.sqrt(dx*dx+dy*dy);
-    const lim = 50;
-    const nx = d > lim ? (dx/d)*lim : dx;
-    const ny = d > lim ? (dy/d)*lim : dy;
-    setJoy({ x: nx, y: ny });
-    move.current = { x: nx/lim, y: ny/lim };
+    const rect = e.currentTarget.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    let dx = t.clientX - centerX;
+    let dy = t.clientY - centerY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const limit = 40;
+
+    if (dist > limit) { dx *= limit/dist; dy *= limit/dist; }
+    
+    setJoy({ x: dx, y: dy });
+    move.current = { x: dx / limit, y: dy / limit };
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#000', touchAction: 'none' }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#000', touchAction: 'none', overflow: 'hidden' }}>
       <div ref={mountRef} />
-      <div onTouchMove={touch} onTouchEnd={() => {setJoy({x:0,y:0}); move.current={x:0,y:0}}}
-           style={{ position:'absolute', bottom:'40px', left:'50%', transform:'translateX(-50%)', width:'120px', height:'120px', borderRadius:'50%', border:'4px solid white', background:'rgba(255,255,255,0.2)' }}>
-        <div style={{ width:'50px', height:'50px', background:'#fff', borderRadius:'50%', position:'absolute', left:'35px', top:'35px', transform:`translate(${joy.x}px, ${joy.y}px)` }} />
+      
+      {/* Joystick UI */}
+      <div 
+        onTouchMove={handleTouch} 
+        onTouchEnd={() => {setJoy({x:0,y:0}); move.current={x:0,y:0}}}
+        style={{ 
+          position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)', 
+          width: '100px', height: '100px', borderRadius: '50%', border: '3px solid white', 
+          background: 'rgba(255,255,255,0.2)', zIndex: 10 
+        }}
+      >
+        <div style={{ 
+          width: '40px', height: '40px', background: 'white', borderRadius: '50%', 
+          position: 'absolute', left: '30px', top: '30px', 
+          transform: `translate(${joy.x}px, ${joy.y}px)` 
+        }} />
       </div>
     </div>
   );
