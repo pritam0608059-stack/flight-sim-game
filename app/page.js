@@ -1,4 +1,4 @@
-    "use client";
+use client";
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
@@ -64,3 +64,4 @@ export default function Game() {
 const btnStyle = {
   width: '70px', height: '70px', background: 'rgba(255,255,255,0.7)', border: '2px solid black', borderRadius: '50%', fontWeight: 'bold', fontSize: '14px', touchAction: 'none'
 };
+        
