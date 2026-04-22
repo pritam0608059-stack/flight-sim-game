@@ -1,91 +1,68 @@
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+// Aapki banayi hui files ko yahan bula rahe hain
+import { createAeroplane } from '../components/Aeroplane';
+import { createMap } from '../components/Map';
 
-export default function RealFlightSim() {
+export default function Game() {
   const mountRef = useRef(null);
   const [joy, setJoy] = useState({ x: 0, y: 0 });
-  const [thr, setThr] = useState(1.5);
+  const [thr, setThr] = useState(2.0); // Default speed
   const moveRef = useRef({ x: 0, y: 0 });
   const planeRef = useRef(null);
 
   useEffect(() => {
+    // 1. Scene Setup
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 200, 5000);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 30000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6), new THREE.DirectionalLight(0xffffff, 1));
-    scene.add(new THREE.GridHelper(50000, 150, 0x0044ff, 0x002288));
+    // 2. Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(500, 1000, 500);
+    scene.add(sun);
 
-    // --- REALISTIC AEROPLANE DESIGN ---
-    const plane = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, metalness: 0.3, roughness: 0.3 });
-    const engineMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 });
-
-    // Fuselage (Body)
-    const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.5, 10, 18), bodyMat);
-    fuselage.rotation.x = Math.PI / 2;
-    plane.add(fuselage);
-
-    // Nose Cone
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), bodyMat);
-    nose.position.z = -5;
-    nose.scale.set(1, 0.9, 1.2);
-    plane.add(nose);
-
-    // Main Wings
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(16, 0.15, 3.5), bodyMat);
-    wing.position.z = 0.5;
-    plane.add(wing);
-
-    // Two Engines
-    const engineGeo = new THREE.CylinderGeometry(0.55, 0.45, 2, 12);
-    const engineL = new THREE.Mesh(engineGeo, engineMat);
-    engineL.rotation.x = Math.PI / 2;
-    engineL.position.set(-4.5, -0.7, 0);
-    const engineR = engineL.clone();
-    engineR.position.x = 4.5;
-    plane.add(engineL, engineR);
-
-    // Tail Assembly
-    const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 2), bodyMat);
-    tailFin.position.set(0, 1.5, 4);
-    const rearWings = new THREE.Mesh(new THREE.BoxGeometry(6, 0.1, 1.5), bodyMat);
-    rearWings.position.z = 4.2;
-    plane.add(tailFin, rearWings);
-
+    // 3. Map & Plane Bulana (Aapki files se)
+    createMap(scene); //components/Map.js se
+    const plane = createAeroplane(); //components/Aeroplane.js se
     scene.add(plane);
-    plane.position.y = 400;
+    plane.position.y = 500; // Start high to see the map
     planeRef.current = plane;
 
     let yaw = 0;
+
+    // 4. Game Loop
     const animate = () => {
       requestAnimationFrame(animate);
       if (planeRef.current) {
-        // Anti-Blue Screen Rotation
-        const p = THREE.MathUtils.clamp(moveRef.current.y * 0.4, -0.5, 0.5);
+        // BLUE SCREEN FIX: Rotation control
+        const p = THREE.MathUtils.clamp(moveRef.current.y * 0.45, -0.6, 0.6);
         const r = -moveRef.current.x * 0.7;
-        yaw -= moveRef.current.x * 0.015;
+        yaw -= moveRef.current.x * 0.02;
 
         planeRef.current.rotation.set(p, yaw, r);
         planeRef.current.translateZ(-thr);
 
-        // Fixed Follow Camera
-        const camPos = new THREE.Vector3(0, 10, 28).applyMatrix4(planeRef.current.matrixWorld);
-        camera.position.copy(camPos);
+        // Fixed Camera Follow (Safe Distance)
+        const camOffset = new THREE.Vector3(0, 12, 35).applyMatrix4(planeRef.current.matrixWorld);
+        camera.position.copy(camOffset);
         camera.lookAt(planeRef.current.position);
       }
       renderer.render(scene, camera);
     };
     animate();
+
+    // Cleanup
     return () => { if(mountRef.current) mountRef.current.innerHTML = ""; };
   }, [thr]);
 
+  // Joystick Logic
   const handleJoy = (e) => {
     const t = e.touches;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -104,21 +81,20 @@ export default function RealFlightSim() {
     <div style={{ width: '100vw', height: '100vh', touchAction: 'none', background: '#000', overflow: 'hidden' }}>
       <div ref={mountRef} />
       
-      {/* HUD Panel */}
-      <div style={{ position: 'absolute', top: '20px', left: '20px', color: '#0f0', fontFamily: 'monospace', fontSize: '18px', background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '5px' }}>
-        ALT: {planeRef.current ? Math.round(planeRef.current.position.y) : 0} FT | SPD: {Math.round(thr * 130)} KTS
+      {/* HUD indicators */}
+      <div style={{ position: 'absolute', top: '20px', left: '20px', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px', fontFamily: 'monospace' }}>
+        ALT: {planeRef.current ? Math.round(planeRef.current.position.y) : 0} FT | SPEED: {Math.round(thr * 100)}
       </div>
 
       {/* Joystick */}
       <div onTouchMove={handleJoy} onTouchEnd={() => {setJoy({x:0,y:0}); moveRef.current={x:0,y:0}}}
-        style={{ position: 'absolute', bottom: '60px', left: '60px', width: '120px', height: '120px', borderRadius: '50%', border: '4px solid white', background: 'rgba(255,255,255,0.1)' }}>
-        <div style={{ width: '50px', height: '50px', background: 'white', borderRadius: '50%', position: 'absolute', left: '35px', top: '35px', transform: `translate(${joy.x}px, ${joy.y}px)`, boxShadow: '0 0 15px white' }} />
+        style={{ position: 'absolute', bottom: '60px', left: '60px', width: '110px', height: '110px', borderRadius: '50%', border: '3px solid white', background: 'rgba(255,255,255,0.1)' }}>
+        <div style={{ width: '50px', height: '50px', background: 'white', borderRadius: '50%', position: 'absolute', left: '30px', top: '30px', transform: `translate(${joy.x}px, ${joy.y}px)` }} />
       </div>
 
-      {/* Throttle (Speed) */}
-      <div style={{ position: 'absolute', bottom: '60px', right: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <input type="range" min="0.5" max="6.0" step="0.1" value={thr} orient="vertical" onChange={(e) => setThr(parseFloat(e.target.value))} style={{ appearance: 'slider-vertical', height: '220px', width: '40px' }} />
-        <span style={{ color: 'white', marginTop: '10px', fontWeight: 'bold', fontSize: '14px' }}>THROTTLE</span>
+      {/* Speed Slider (Throttle) */}
+      <div style={{ position: 'absolute', bottom: '60px', right: '60px' }}>
+        <input type="range" min="0.5" max="10" step="0.1" value={thr} orient="vertical" onChange={(e) => setThr(parseFloat(e.target.value))} style={{ appearance: 'slider-vertical', height: '220px', width: '40px' }} />
       </div>
     </div>
   );
