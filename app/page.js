@@ -86,5 +86,4 @@ export default function StableFlight() {
       </div>
     </div>
   );
-    }
-            
+}
